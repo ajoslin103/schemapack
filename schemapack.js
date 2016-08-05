@@ -6,6 +6,7 @@
 var Buffer = require('buffer').Buffer;
 var strEnc = 'utf8';
 var aliasTypes = {};
+var sortSchema = true;
 
 function addTypeAlias(newTypeName, underlyingType) {
   var everyType = Object.keys(readTypeDictStr);
@@ -20,6 +21,10 @@ function getDataType(val) {
   if (aliasTypes.hasOwnProperty(dataType)) { dataType = aliasTypes[dataType]; }
   if (everyType.indexOf(dataType) === -1) { throw new TypeError("Invalid data type for schema: " + val + " -> " + dataType); }
   return dataType;
+}
+
+function setSchemaSorting(schemaSorting) {
+	sortSchema = schemaSorting;
 }
 
 function setStringEncoding(stringEncoding) {
@@ -191,8 +196,8 @@ function decodeValue(dataType, id, prop) {
 
 function encodeByteCount(dataType, id, prop) {
   var isConstant = constantByteCounts.hasOwnProperty(dataType);
-  
-  if (isConstant) { return "byteC+=" + constantByteCounts[dataType] + ";"; } 
+
+  if (isConstant) { return "byteC+=" + constantByteCounts[dataType] + ";"; }
   else { return "byteC+=bag.dynamicByteCounts['" + dataType + "'](ref" + id + prop + ");"; }
 }
 
@@ -222,14 +227,16 @@ function getCompiledSchema(schema) {
   function compileSchema(json, inArray) {
     incID++;
     var keys = Object.keys(json);
-    keys.sort(function(a, b) { return a.toLowerCase().localeCompare(b.toLowerCase()); });
+    if (sortSchema) {
+		keys.sort(function(a, b) { return a.toLowerCase().localeCompare(b.toLowerCase()); });
+	}
 
     var saveID = incID;
 
     for (var i = 0; i < keys.length; i++) {
       var key = keys[i];
       var val = json[key];
-      
+
       if (inArray) { key = +key; }
 
       var prop = typeof key === "number" ? key : "'" + key + "'";
@@ -261,7 +268,7 @@ function getCompiledSchema(schema) {
         tmpRepEncArr = encArrayLength + processArrayEnd(val, newID, repEncArrStack.pop() + tmpRepEncArr, repEncArrStack.length);
         tmpRepDecArr = decArrayLength + processArrayEnd(val, newID, repDecArrStack.pop() + tmpRepDecArr, repEncArrStack.length, arrLenStr);
         tmpRepByteCount = byteArrayLength + processArrayEnd(val, newID, repByteCountStack.pop() + tmpRepByteCount, repEncArrStack.length);
-        
+
         if (repEncArrStack.length === 1) {
           strEncodeFunction += tmpRepEncArr; tmpRepEncArr = "";
           strDecodeFunction += tmpRepDecArr; tmpRepDecArr = "";
@@ -309,7 +316,7 @@ function getCompiledSchema(schema) {
   return [ compiledEncode, compiledDecode ];
 }
 
-function build(schema) { 
+function build(schema) {
   var builtSchema = getCompiledSchema(schema);
 
   var compiledEncode = builtSchema[0];
@@ -320,7 +327,7 @@ function build(schema) {
       var itemWrapper = typeof json === "object" && json.constructor !== Array ? json : { "a": json };
       return compiledEncode(itemWrapper, bag);
     },
-    "decode": function(buffer) { 
+    "decode": function(buffer) {
       var bufferWrapper = buffer instanceof ArrayBuffer ? bufferFrom(buffer) : buffer;
       return compiledDecode(bufferWrapper, bag);
     }
@@ -332,5 +339,6 @@ addTypeAlias('bool', 'boolean');
 module.exports = exports = {
   "build": build,
   "addTypeAlias": addTypeAlias,
-  "setStringEncoding": setStringEncoding
+  "setStringEncoding": setStringEncoding,
+  "setSchemaSorting": setSchemaSorting
 };
